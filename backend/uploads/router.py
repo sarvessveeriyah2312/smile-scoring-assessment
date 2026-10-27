@@ -2,7 +2,6 @@ import logging
 
 from cryptography.exceptions import InvalidTag
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
-from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,7 +46,7 @@ async def upload_image(
         )
     content_type, extension = detected
 
-    stored_name = await run_in_threadpool(storage.save, data, extension)
+    stored_name = await storage.save(db, data, extension)
     upload = Upload(
         user_id=user.id,
         filename=filename,
@@ -57,11 +56,7 @@ async def upload_image(
     )
     upload.smile = SmileAnalysis(status="pending")
     db.add(upload)
-    try:
-        await db.commit()
-    except Exception:
-        await run_in_threadpool(storage.remove, stored_name)
-        raise
+    await db.commit()
 
     # Runs right after the response is sent, so the upload doesn't wait for MediaPipe.
     background_tasks.add_task(analyse_upload, upload.id)
@@ -108,7 +103,7 @@ async def get_upload_image(
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
 
-    data = await run_in_threadpool(storage.read, upload.stored_name)
+    data = await storage.read(db, upload.stored_name)
     return Response(content=encrypt_bytes(data), media_type="application/octet-stream", headers=headers)
 
 
@@ -116,7 +111,6 @@ async def get_upload_image(
 async def delete_upload(upload_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     upload = await _own_upload(upload_id, user, db)
 
-    stored_name = upload.stored_name
+    await storage.remove(db, upload.stored_name)
     await db.delete(upload)
     await db.commit()
-    await run_in_threadpool(storage.remove, stored_name)

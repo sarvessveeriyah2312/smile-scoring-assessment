@@ -1,7 +1,5 @@
 import logging
 
-from fastapi.concurrency import run_in_threadpool
-
 from sqlalchemy import select
 
 from database import SessionLocal
@@ -20,7 +18,7 @@ async def analyse_upload(upload_id: int) -> None:
             return
 
         try:
-            data = await run_in_threadpool(storage.read, upload.stored_name)
+            data = await storage.read(db, upload.stored_name)
             result = await analyse_cached(data)
         except Exception:
             log.exception("Smile analysis failed for upload %s", upload_id)

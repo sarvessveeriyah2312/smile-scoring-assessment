@@ -1,13 +1,9 @@
-import os
 import secrets
-from pathlib import Path
 
-from dotenv import load_dotenv
+from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
-load_dotenv()
-
-# On Render, point this at the persistent disk (e.g. /var/data/media) so files survive deploys.
-MEDIA_DIR = Path(os.getenv("MEDIA_DIR") or Path(__file__).resolve().parent.parent / "media")
+from uploads.models import StoredFile
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 MB
 
@@ -29,17 +25,20 @@ def detect_image(data: bytes) -> tuple[str, str] | None:
     return None
 
 
-# These block on disk I/O, so call them via run_in_threadpool from async code.
-def save(data: bytes, extension: str) -> str:
-    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+# Files live in Postgres. save and remove only stage the change; the caller's
+# commit makes it stick, so a file and its upload record are saved or dropped together.
+async def save(db: AsyncSession, data: bytes, extension: str) -> str:
     stored_name = secrets.token_hex(16) + extension
-    (MEDIA_DIR / stored_name).write_bytes(data)
+    db.add(StoredFile(name=stored_name, data=data))
     return stored_name
 
 
-def read(stored_name: str) -> bytes:
-    return (MEDIA_DIR / stored_name).read_bytes()
+async def read(db: AsyncSession, stored_name: str) -> bytes:
+    file = await db.get(StoredFile, stored_name)
+    if file is None:
+        raise FileNotFoundError(stored_name)
+    return file.data
 
 
-def remove(stored_name: str) -> None:
-    (MEDIA_DIR / stored_name).unlink(missing_ok=True)
+async def remove(db: AsyncSession, stored_name: str) -> None:
+    await db.execute(delete(StoredFile).where(StoredFile.name == stored_name))
