@@ -249,11 +249,3 @@ OAuth client of type *Web application*:
 
 - **Authorised JavaScript origins**: `http://localhost:3000`, `https://smileanalysis.vercel.app`
 - **Authorised redirect URIs**: `http://localhost:3000/api/auth/google/callback`, `https://smileanalysis.vercel.app/api/auth/google/callback`
-
-## Known limitations
-
-- **Free-tier cold starts**: the Render backend sleeps when idle, and the first request reloads the model.
-- **Image storage counts against Neon's storage allowance**, so free-tier capacity is limited.
-- **Upload size on Vercel**: requests pass through Vercel's rewrite, which may cap bodies at about 4.5 MB even though the app allows 10 MB.
-- **Single backend instance**: analysis runs in-process, so heavy upload bursts share CPU with normal requests.
-- **Exact-duplicate cache only**: re-uploading identical bytes reuses a cached result for 30 days; edited or resized copies are analysed again.
