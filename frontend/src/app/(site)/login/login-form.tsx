@@ -64,10 +64,26 @@ async function login(_prev: State, formData: FormData): Promise<State> {
   };
 }
 
-export function JustRegisteredNotice() {
-  const justRegistered = useSearchParams().get("registered") === "1";
-  if (!justRegistered) return null;
+const GOOGLE_ERRORS: Record<string, string> = {
+  google: "Signing in with Google didn't work. Please try again.",
+  google_cancelled: "Google sign-in was cancelled.",
+  google_unverified: "Your Google account's email isn't verified, so we can't use it to sign you in.",
+  google_unavailable: "Google sign-in isn't set up yet. Please use your email and password.",
+};
 
+export function LoginNotice() {
+  const params = useSearchParams();
+  const error = GOOGLE_ERRORS[params.get("error") ?? ""];
+
+  if (error) {
+    return (
+      <p role="alert" className="mt-6 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+        {error}
+      </p>
+    );
+  }
+
+  if (params.get("registered") !== "1") return null;
   return (
     <p
       role="status"
@@ -78,7 +94,7 @@ export function JustRegisteredNotice() {
   );
 }
 
-export function LoginForm({ notice }: { notice?: React.ReactNode }) {
+export function LoginForm({ notice, google }: { notice?: React.ReactNode; google?: React.ReactNode }) {
   const { setUser } = useAuth();
   const router = useRouter();
 
@@ -108,6 +124,7 @@ export function LoginForm({ notice }: { notice?: React.ReactNode }) {
   return (
     <>
       {notice}
+      {google}
       <form action={formAction} noValidate className="mt-6 flex flex-col gap-4">
         {state.status === "error" && (
           <p

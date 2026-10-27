@@ -13,6 +13,7 @@ from uploads import smile
 from uploads.jobs import resume_pending
 from uploads.router import router as uploads_router
 from users import models  # noqa: F401  (imported so the users table is known to Base)
+from users.google import router as google_router
 from users.router import router as users_router
 
 
@@ -26,6 +27,9 @@ async def lifespan(app: FastAPI):
         # smile_analyses tables up to date. Safe to run every time.
         await conn.execute(text("ALTER TABLE smile_analyses ADD COLUMN IF NOT EXISTS status VARCHAR(16) NOT NULL DEFAULT 'done'"))
         await conn.execute(text("ALTER TABLE smile_analyses ALTER COLUMN face_found DROP NOT NULL"))
+        await conn.execute(text("ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub VARCHAR(255)"))
+        await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)"))
     # A missing model should stop startup, not fail every upload later.
     await run_in_threadpool(smile.load)
     resume = asyncio.create_task(resume_pending())
@@ -41,4 +45,5 @@ app = FastAPI(lifespan=lifespan)
 app.add_middleware(PayloadEncryptionMiddleware)
 
 app.include_router(users_router)
+app.include_router(google_router)
 app.include_router(uploads_router)

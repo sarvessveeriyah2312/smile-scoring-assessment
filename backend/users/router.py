@@ -42,8 +42,10 @@ async def login(payload: LoginRequest, request: Request, response: Response, db:
 
     user = await db.scalar(select(User).where(User.email == email))
 
-    password_ok = verify_password(payload.password, user.password_hash if user else _DUMMY_HASH)
-    if not user or not password_ok:
+    # Google-only accounts have no password, so they take the dummy path like a missing user.
+    stored_hash = user.password_hash if user and user.password_hash else _DUMMY_HASH
+    password_ok = verify_password(payload.password, stored_hash)
+    if not user or not user.password_hash or not password_ok:
         await record_failure(email, ip)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "That email and password don't match our records.")
 

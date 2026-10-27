@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GoogleButton } from "@/components/google-button";
 import { RegisterForm } from "./register-form";
 
 export const metadata: Metadata = {
@@ -11,8 +12,9 @@ export default function RegisterPage() {
       <div className="w-full max-w-sm rounded-2xl border border-black/[.08] bg-white p-8 shadow-sm dark:border-white/[.145] dark:bg-zinc-950">
         <h1 className="text-2xl font-semibold tracking-tight">Create an account</h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          All we need is your email and a password.
+          Sign up with Google, or with just an email and password.
         </p>
+        <GoogleButton label="Sign up with Google" />
         <RegisterForm />
       </div>
     </main>
