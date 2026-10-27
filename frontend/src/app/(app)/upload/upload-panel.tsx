@@ -147,7 +147,7 @@ export function UploadPanel() {
         ) : uploads.length === 0 ? (
           <p className="mt-3 text-sm text-zinc-500">Nothing here yet. Your images will show up here once they&apos;re uploaded.</p>
         ) : (
-          <ul className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <ul className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-4">
             {uploads.map((upload) => (
               <li key={upload.id} className="overflow-hidden rounded-xl border border-black/[.08] dark:border-white/[.145]">
                 <Thumbnail upload={upload} />

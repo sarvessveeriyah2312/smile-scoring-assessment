@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/auth/auth-provider";
+import { SidebarScript } from "@/sidebar/sidebar-script";
 import { ThemeScript } from "@/theme/theme-script";
 import { SiteHeader } from "./site-header";
 
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <head>
         <ThemeScript />
+        <SidebarScript />
       </head>
       <body className="min-h-full flex flex-col">
         <AuthProvider>
