@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
     const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8000";
     return [{ source: "/api/:path*", destination: `${backendUrl}/:path*` }];
   },
+  experimental: {
+    proxyClientMaxBodySize: "20mb",
+  },
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useActionState } from "react";
 import { type User, useAuth } from "@/auth/auth-provider";
 import { FormField } from "@/components/form-field";
@@ -71,11 +71,15 @@ export function JustRegisteredNotice() {
 
 export function LoginForm({ notice }: { notice?: React.ReactNode }) {
   const { setUser } = useAuth();
+  const router = useRouter();
 
   const [state, formAction, pending] = useActionState(
     async (prev: State, formData: FormData) => {
       const next = await login(prev, formData);
-      if (next.status === "success") setUser(next.user);
+      if (next.status === "success") {
+        setUser(next.user);
+        router.push("/upload");
+      }
       return next;
     },
     { status: "idle" },
@@ -87,7 +91,7 @@ export function LoginForm({ notice }: { notice?: React.ReactNode }) {
         role="status"
         className="mt-6 rounded-lg bg-green-50 p-4 text-sm text-green-800 dark:bg-green-950 dark:text-green-200"
       >
-        Welcome back, <strong>{state.user.email}</strong>. You&apos;re logged in.
+        Welcome back, <strong>{state.user.email}</strong>. Taking you to your uploads…
       </div>
     );
   }
