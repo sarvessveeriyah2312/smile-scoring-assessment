@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
 import { apiUpload } from "@/lib/api";
+import { type Smile, smileLabel } from "@/lib/smile";
 
-type QueuedFile = { key: string; file: File; status: "uploading" | "done" | "error"; error?: string };
+type QueuedFile = { key: string; file: File; status: "uploading" | "done" | "error"; error?: string; smile?: Smile | null };
 
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -40,10 +41,10 @@ export function UploadPanel() {
       if (!ACCEPTED_TYPES.includes(file.type) || file.size > MAX_BYTES) continue;
 
       try {
-        const res = await apiUpload<{ detail?: string }>("/uploads", file);
+        const res = await apiUpload<{ detail?: string; smile?: Smile | null }>("/uploads", file);
         if (res.ok) {
           // Leave it in the list as done, so people can see it worked.
-          updateQueued(key, { status: "done" });
+          updateQueued(key, { status: "done", smile: res.data?.smile ?? null });
         } else if (res.status === 401) {
           updateQueued(key, { status: "error", error: "Your session has ended. Please log in again." });
         } else {
@@ -110,6 +111,7 @@ export function UploadPanel() {
               ) : item.status === "done" ? (
                 <>
                   <span className="text-green-700 dark:text-green-400">Uploaded</span>
+                  <span className="text-zinc-600 tabular-nums dark:text-zinc-400">{describeResult(item.smile)}</span>
                   <Link href="/upload-history" className="text-zinc-500 underline-offset-4 hover:text-foreground hover:underline">
                     View in history
                   </Link>
@@ -128,4 +130,10 @@ export function UploadPanel() {
       )}
     </div>
   );
+}
+
+function describeResult(smile: Smile | null | undefined) {
+  if (!smile) return "Couldn't score this one";
+  if (!smile.face_found || smile.score === null) return "No face found";
+  return `Smile ${Math.round(smile.score)}/100 · ${smileLabel(smile.score)}`;
 }

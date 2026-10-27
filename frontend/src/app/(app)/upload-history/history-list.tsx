@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/auth/auth-provider";
+import { SmileScore } from "@/components/smile-score";
 import { apiFetch } from "@/lib/api";
+import type { Smile } from "@/lib/smile";
 
-type Upload = { id: number; filename: string; content_type: string; size: number; created_at: string };
+type Upload = { id: number; filename: string; content_type: string; size: number; created_at: string; smile: Smile | null };
 
 export function HistoryList() {
   const { user } = useAuth();
@@ -91,6 +93,8 @@ function HistoryCard({ upload, onDeleted }: { upload: Upload; onDeleted: () => v
             {formatSize(upload.size)} · {formatDate(upload.created_at)}
           </p>
         </div>
+
+        <SmileScore smile={upload.smile} />
 
         {step === "confirming" ? (
           <div className="flex flex-col gap-2">

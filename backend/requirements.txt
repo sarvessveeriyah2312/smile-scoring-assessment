@@ -4,3 +4,5 @@ asyncpg
 python-dotenv
 pwdlib[argon2]
 cryptography
+mediapipe
+pillow

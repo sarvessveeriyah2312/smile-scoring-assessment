@@ -1,19 +1,22 @@
 import base64
+import logging
 
 from cryptography.exceptions import InvalidTag
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from payload_crypto import decrypt_bytes, decrypt_value
-from uploads import storage
-from uploads.models import Upload
+from uploads import smile, storage
+from uploads.models import SmileAnalysis, Upload
 from uploads.schemas import UploadResponse, UploadWithData
 from users.models import User
 from users.session import get_current_user
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
+log = logging.getLogger(__name__)
 
 
 @router.post("", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
@@ -43,6 +46,14 @@ async def upload_image(
         )
     content_type, extension = detected
 
+    # MediaPipe is slow, CPU-bound work, so keep it off the event loop.
+    # If it falls over, the upload still goes through; it just won't have a score.
+    try:
+        result = await run_in_threadpool(smile.analyse, data)
+    except Exception:
+        log.exception("Smile analysis failed for %r", filename)
+        result = None
+
     stored_name = storage.save(data, extension)
     upload = Upload(
         user_id=user.id,
@@ -51,6 +62,13 @@ async def upload_image(
         content_type=content_type,
         size=len(data),
     )
+    if result is not None:
+        upload.smile = SmileAnalysis(
+            face_found=result.face_found,
+            smile_left=result.smile_left,
+            smile_right=result.smile_right,
+            score=result.score,
+        )
     db.add(upload)
     try:
         await db.commit()
@@ -58,7 +76,7 @@ async def upload_image(
         storage.remove(stored_name)
         raise
 
-    await db.refresh(upload)
+    await db.refresh(upload, attribute_names=["created_at", "smile"])
     return upload
 
 
