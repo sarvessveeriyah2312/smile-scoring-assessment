@@ -48,19 +48,89 @@ export function HistoryList() {
     // sidebar opens or closes, not just when the window is resized.
     <ul className="mt-6 grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-4">
       {uploads.map((upload) => (
-        <li key={upload.id} className="overflow-hidden rounded-xl border border-black/[.08] dark:border-white/[.145]">
-          <Thumbnail upload={upload} />
-          <div className="px-3 py-2">
-            <p className="truncate text-sm font-medium" title={upload.filename}>
-              {upload.filename}
-            </p>
-            <p className="text-xs text-zinc-500">
-              {formatSize(upload.size)} · {formatDate(upload.created_at)}
-            </p>
-          </div>
-        </li>
+        <HistoryCard
+          key={upload.id}
+          upload={upload}
+          onDeleted={() => setUploads((current) => current?.filter((u) => u.id !== upload.id) ?? null)}
+        />
       ))}
     </ul>
+  );
+}
+
+function HistoryCard({ upload, onDeleted }: { upload: Upload; onDeleted: () => void }) {
+  // "idle" → "confirming" → "deleting". Asking first means one stray click
+  // can't throw an image away.
+  const [step, setStep] = useState<"idle" | "confirming" | "deleting">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  async function confirmDelete() {
+    setStep("deleting");
+    setError(null);
+    try {
+      const res = await apiFetch(`/uploads/${upload.id}`, { method: "DELETE" });
+      // A 404 means it's already gone (maybe deleted in another tab), which is
+      // what they wanted anyway.
+      if (res.ok || res.status === 404) return onDeleted();
+      setError(res.status === 401 ? "Your session has ended. Please log in again." : "That didn't delete. Please try again.");
+    } catch {
+      setError("We couldn't reach the server. Please try again.");
+    }
+    setStep("idle");
+  }
+
+  return (
+    <li className={`overflow-hidden rounded-xl border border-black/[.08] dark:border-white/[.145] ${step === "deleting" ? "opacity-50" : ""}`}>
+      <Thumbnail upload={upload} />
+      <div className="flex flex-col gap-2 px-3 py-2">
+        <div>
+          <p className="truncate text-sm font-medium" title={upload.filename}>
+            {upload.filename}
+          </p>
+          <p className="text-xs text-zinc-500">
+            {formatSize(upload.size)} · {formatDate(upload.created_at)}
+          </p>
+        </div>
+
+        {step === "confirming" ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-zinc-600 dark:text-zinc-400">Delete this image? This can&apos;t be undone.</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="flex-1 rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-red-700"
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep("idle")}
+                className="flex-1 rounded-md border border-black/[.08] px-2 py-1 text-xs font-medium transition-colors hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-white/[.06]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setStep("confirming")}
+            disabled={step === "deleting"}
+            aria-label={`Delete ${upload.filename}`}
+            className="self-start text-xs font-medium text-red-600 underline-offset-4 hover:underline disabled:no-underline dark:text-red-400"
+          >
+            {step === "deleting" ? "Deleting…" : "Delete"}
+          </button>
+        )}
+
+        {error && (
+          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+            {error}
+          </p>
+        )}
+      </div>
+    </li>
   );
 }
 

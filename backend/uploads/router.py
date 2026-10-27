@@ -65,12 +65,21 @@ async def list_uploads(user: User = Depends(get_current_user), db: AsyncSession 
 @router.get("/{upload_id}", response_model=UploadWithData)
 async def get_upload(upload_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     upload = await db.get(Upload, upload_id)
-    # Someone else's upload gets the same 404 as a missing one, so you can't
-    # go poking at ids to find out what other people have uploaded.
     if upload is None or upload.user_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "We couldn't find that image.")
 
-    # Sent back as base64 inside the JSON, so it goes through the same
-    # encryption as everything else instead of travelling as a raw image.
+
     data = base64.b64encode(storage.read(upload.stored_name)).decode()
     return UploadWithData(**UploadResponse.model_validate(upload).model_dump(), data=data)
+
+
+@router.delete("/{upload_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_upload(upload_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    upload = await db.get(Upload, upload_id)
+    if upload is None or upload.user_id != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "We couldn't find that image.")
+
+    stored_name = upload.stored_name
+    await db.delete(upload)
+    await db.commit()
+    storage.remove(stored_name)
