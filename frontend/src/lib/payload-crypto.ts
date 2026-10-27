@@ -23,6 +23,17 @@ export async function encryptValue(value: unknown): Promise<string> {
   return toBase64(out);
 }
 
+// For file uploads: the raw bytes, encrypted, with no base64 or JSON around them.
+export async function encryptBytes(bytes: ArrayBuffer): Promise<Uint8Array<ArrayBuffer>> {
+  const nonce = crypto.getRandomValues(new Uint8Array(NONCE_SIZE));
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, await getKey(), bytes);
+
+  const out = new Uint8Array(NONCE_SIZE + ciphertext.byteLength);
+  out.set(nonce);
+  out.set(new Uint8Array(ciphertext), NONCE_SIZE);
+  return out;
+}
+
 export async function decryptValue<T = unknown>(token: string): Promise<T> {
   const raw = fromBase64(token);
   const plaintext = await crypto.subtle.decrypt(

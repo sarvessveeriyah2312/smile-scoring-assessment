@@ -1,14 +1,15 @@
 import base64
-import binascii
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from cryptography.exceptions import InvalidTag
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
+from payload_crypto import decrypt_bytes, decrypt_value
 from uploads import storage
 from uploads.models import Upload
-from uploads.schemas import UploadRequest, UploadResponse, UploadWithData
+from uploads.schemas import UploadResponse, UploadWithData
 from users.models import User
 from users.session import get_current_user
 
@@ -17,14 +18,19 @@ router = APIRouter(prefix="/uploads", tags=["uploads"])
 
 @router.post("", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_image(
-    payload: UploadRequest,
+    # Both parts arrive encrypted: the filename like any other value, the file as raw bytes.
+    filename: str = Form(),
+    file: UploadFile = File(),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        data = base64.b64decode(payload.data, validate=True)
-    except binascii.Error:
+        filename = str(decrypt_value(filename))[:255]
+        data = decrypt_bytes(await file.read())
+    except (ValueError, TypeError, InvalidTag):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "That file didn't come through properly. Please try again.")
+    if not filename.strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That file needs a name.")
 
     if len(data) > storage.MAX_IMAGE_BYTES:
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "That image is over 10 MB. Please pick a smaller one.")
@@ -40,7 +46,7 @@ async def upload_image(
     stored_name = storage.save(data, extension)
     upload = Upload(
         user_id=user.id,
-        filename=payload.filename,
+        filename=filename,
         stored_name=stored_name,
         content_type=content_type,
         size=len(data),

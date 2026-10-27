@@ -3,9 +3,6 @@
 /* dark: utilities follow the theme the user picked, not just the OS setting. */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* sidebar-collapsed: utilities kick in when the app sidebar is folded up. */
-@custom-variant sidebar-collapsed (&:where([data-sidebar="collapsed"] *));
-
 :root {
   --background: #ffffff;
   --foreground: #171717;

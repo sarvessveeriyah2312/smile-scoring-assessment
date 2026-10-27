@@ -1,4 +1,4 @@
-import { decryptPayload, encryptPayload } from "./payload-crypto";
+import { decryptPayload, encryptBytes, encryptPayload, encryptValue } from "./payload-crypto";
 
 export type ApiResponse<T> = { ok: boolean; status: number; data: T | null };
 
@@ -15,6 +15,22 @@ export async function apiFetch<T = Record<string, unknown>>(
     body: options.body ? JSON.stringify(await encryptPayload(options.body)) : undefined,
   });
 
+  return readResponse<T>(res);
+}
+
+// Sends a file as multipart/form-data. The file's bytes and its name are both
+// encrypted first, and the part itself is just called "upload.bin" so the real
+// name doesn't slip out in the multipart headers.
+export async function apiUpload<T = Record<string, unknown>>(path: string, file: File): Promise<ApiResponse<T>> {
+  const form = new FormData();
+  form.append("filename", await encryptValue(file.name));
+  form.append("file", new Blob([await encryptBytes(await file.arrayBuffer())], { type: "application/octet-stream" }), "upload.bin");
+
+  // No Content-Type header here: the browser sets it, boundary and all.
+  return readResponse<T>(await fetch(`/api${path}`, { method: "POST", body: form }));
+}
+
+async function readResponse<T>(res: Response): Promise<ApiResponse<T>> {
   // Some responses (like a 204) have no body at all, and if the server is down
   // the proxy may hand back an HTML error page. Either way there's nothing to decrypt.
   let data: T | null = null;

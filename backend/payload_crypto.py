@@ -30,6 +30,12 @@ def decrypt_value(token: str) -> Any:
     return json.loads(plaintext)
 
 
+def decrypt_bytes(raw: bytes) -> bytes:
+    # For file uploads: same nonce + ciphertext layout, just raw bytes instead
+    # of base64'd JSON, so a 10 MB image stays about 10 MB on the wire.
+    return _aesgcm.decrypt(raw[:_NONCE_SIZE], raw[_NONCE_SIZE:], None)
+
+
 def encrypt_payload(payload: dict[str, Any]) -> dict[str, str]:
     """{"email": "a@b.co"} -> {"email": "<encrypted>"}. Keys stay readable."""
     return {key: encrypt_value(value) for key, value in payload.items()}

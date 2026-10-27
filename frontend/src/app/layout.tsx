@@ -4,7 +4,6 @@ import "./globals.css";
 import { AuthProvider } from "@/auth/auth-provider";
 import { SidebarScript } from "@/sidebar/sidebar-script";
 import { ThemeScript } from "@/theme/theme-script";
-import { SiteHeader } from "./site-header";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,7 +32,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="min-h-full flex flex-col">
         <AuthProvider>
-          <SiteHeader />
           {children}
         </AuthProvider>
       </body>

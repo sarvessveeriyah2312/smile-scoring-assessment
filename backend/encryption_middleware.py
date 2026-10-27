@@ -28,7 +28,10 @@ class PayloadEncryptionMiddleware:
         if body is None:
             await _send_json(send, 413, encrypt_payload({"detail": "That request is too large."}))
             return
-        if body:
+        # Multipart uploads carry their own encrypted parts, which the route
+        # decrypts itself. Everything else is the usual encrypted JSON.
+        is_multipart = _header(scope, b"content-type").startswith(b"multipart/form-data")
+        if body and not is_multipart:
             try:
                 body = json.dumps(decrypt_payload(json.loads(body))).encode()
             except (ValueError, TypeError, AttributeError, InvalidTag):
@@ -36,6 +39,10 @@ class PayloadEncryptionMiddleware:
                 return
 
         await self.app(scope, _replay(body), _encrypting_send(send))
+
+
+def _header(scope: Scope, name: bytes) -> bytes:
+    return next((v for k, v in scope["headers"] if k.lower() == name), b"")
 
 
 async def _read_body(receive: Receive) -> bytes | None:

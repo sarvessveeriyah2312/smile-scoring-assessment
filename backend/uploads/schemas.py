@@ -1,11 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
-
-
-class UploadRequest(BaseModel):
-    filename: str = Field(min_length=1, max_length=255)
-    data: str = Field(min_length=1)
+from pydantic import BaseModel, ConfigDict
 
 
 class UploadResponse(BaseModel):

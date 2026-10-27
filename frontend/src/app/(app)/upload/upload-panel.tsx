@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiUpload } from "@/lib/api";
 
 type QueuedFile = { key: string; file: File; status: "uploading" | "done" | "error"; error?: string };
 
@@ -40,9 +40,7 @@ export function UploadPanel() {
       if (!ACCEPTED_TYPES.includes(file.type) || file.size > MAX_BYTES) continue;
 
       try {
-        const res = await apiFetch<{ detail?: string }>("/uploads", {
-          body: { filename: file.name, data: await toBase64(file) },
-        });
+        const res = await apiUpload<{ detail?: string }>("/uploads", file);
         if (res.ok) {
           // Leave it in the list as done, so people can see it worked.
           updateQueued(key, { status: "done" });
@@ -130,14 +128,4 @@ export function UploadPanel() {
       )}
     </div>
   );
-}
-
-function toBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    // A data URL looks like "data:image/png;base64,AAAA…". We only want the part after the comma.
-    reader.onload = () => resolve(String(reader.result).split(",", 2)[1]);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
 }
