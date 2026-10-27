@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from database import Base, engine
+from encryption_middleware import PayloadEncryptionMiddleware
 from users import models  # noqa: F401  (imported so the users table is known to Base)
 from users.router import router as users_router
 
@@ -18,5 +19,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+# Request and response values travel encrypted. See payload_crypto.py.
+app.add_middleware(PayloadEncryptionMiddleware)
 
 app.include_router(users_router)

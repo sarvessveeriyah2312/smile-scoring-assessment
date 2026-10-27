@@ -3,3 +3,4 @@ sqlalchemy[asyncio]
 asyncpg
 python-dotenv
 pwdlib[argon2]
+cryptography
