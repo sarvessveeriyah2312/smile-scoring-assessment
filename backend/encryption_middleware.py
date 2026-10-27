@@ -7,6 +7,7 @@ from payload_crypto import decrypt_payload, encrypt_payload
 
 
 SKIP_PATHS = {"/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect"}
+MAX_BODY_BYTES = 20 * 1024 * 1024
 
 
 class PayloadEncryptionMiddleware:
@@ -24,6 +25,9 @@ class PayloadEncryptionMiddleware:
             return
 
         body = await _read_body(receive)
+        if body is None:
+            await _send_json(send, 413, encrypt_payload({"detail": "That request is too large."}))
+            return
         if body:
             try:
                 body = json.dumps(decrypt_payload(json.loads(body))).encode()
@@ -34,11 +38,17 @@ class PayloadEncryptionMiddleware:
         await self.app(scope, _replay(body), _encrypting_send(send))
 
 
-async def _read_body(receive: Receive) -> bytes:
+async def _read_body(receive: Receive) -> bytes | None:
+    """The whole request body, or None if it goes over MAX_BODY_BYTES."""
     chunks = []
+    total = 0
     while True:
         message = await receive()
-        chunks.append(message.get("body", b""))
+        chunk = message.get("body", b"")
+        total += len(chunk)
+        if total > MAX_BODY_BYTES:
+            return None
+        chunks.append(chunk)
         if not message.get("more_body"):
             return b"".join(chunks)
 
