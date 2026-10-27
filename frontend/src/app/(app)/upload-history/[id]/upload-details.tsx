@@ -6,41 +6,36 @@ import { useAuth } from "@/auth/auth-provider";
 import { SmileScore } from "@/components/smile-score";
 import { apiFetch } from "@/lib/api";
 import { smileLabel } from "@/lib/smile";
-import { type Upload, formatDate, formatSize } from "@/lib/uploads";
+import { type Upload, formatDate, formatSize, useUploadImage } from "@/lib/uploads";
+import { useBreadcrumbLabel } from "../../breadcrumbs";
 
 export function UploadDetails({ id }: { id: number }) {
   const { user } = useAuth();
   const [upload, setUpload] = useState<Upload | null>(null);
-  const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [problem, setProblem] = useState<"not-found" | "error" | null>(null);
   // Something like /upload-history/abc can't match anything, so don't bother asking.
   const validId = Number.isInteger(id) && id > 0;
 
+  // Show the filename as the last breadcrumb once we have it.
+  useBreadcrumbLabel(upload?.filename);
+
   const userId = user?.id;
   useEffect(() => {
     if (!userId || !validId) return;
-    let url: string | null = null;
     let cancelled = false;
 
-    // One request gets both the details and the (encrypted) image itself.
-    apiFetch<Upload & { data?: string }>(`/uploads/${id}`).then(
+    // Just the details and score. The image comes from its own path (see Preview).
+    apiFetch<Upload>(`/uploads/${id}`).then(
       (res) => {
         if (cancelled) return;
-        if (!res.ok || !res.data) return setProblem(res.status === 404 ? "not-found" : "error");
-        const { data, ...details } = res.data;
-        setUpload(details);
-        if (data) {
-          const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-          url = URL.createObjectURL(new Blob([bytes], { type: details.content_type }));
-          setImageSrc(url);
-        }
+        if (res.ok && res.data) setUpload(res.data);
+        else setProblem(res.status === 404 ? "not-found" : "error");
       },
       () => !cancelled && setProblem("error"),
     );
 
     return () => {
       cancelled = true;
-      if (url) URL.revokeObjectURL(url);
     };
   }, [id, userId, validId]);
 
@@ -61,7 +56,7 @@ export function UploadDetails({ id }: { id: number }) {
 
   return (
     <div className="mt-4 flex flex-col gap-8 lg:flex-row lg:items-start">
-      <Preview src={imageSrc} alt={upload.filename} />
+      <Preview upload={upload} />
 
       <div className="flex min-w-0 flex-1 flex-col gap-6">
         <div>
@@ -101,15 +96,17 @@ export function UploadDetails({ id }: { id: number }) {
   );
 }
 
-function Preview({ src, alt }: { src: string | null; alt: string }) {
+function Preview({ upload }: { upload: Upload }) {
+  const { src, failed } = useUploadImage(upload.id, upload.content_type);
+
   return (
     <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-black/[.03] lg:w-[28rem] lg:shrink-0 dark:bg-white/[.04]">
       {src ? (
         // A blob: URL from memory, so next/image's optimiser has nothing to fetch.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={alt} className="h-full w-full object-contain" />
+        <img src={src} alt={upload.filename} className="h-full w-full object-contain" />
       ) : (
-        <span className="text-sm text-zinc-500">Couldn&apos;t load the image</span>
+        <span className="text-sm text-zinc-500">{failed ? "Couldn't load the image" : "Loading image…"}</span>
       )}
     </div>
   );

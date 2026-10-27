@@ -35,7 +35,12 @@ async function readResponse<T>(res: Response): Promise<ApiResponse<T>> {
   // the proxy may hand back an HTML error page. Either way there's nothing to decrypt.
   let data: T | null = null;
   if (res.headers.get("content-type")?.includes("application/json")) {
-    data = await decryptPayload<T>(await res.json()).catch(() => null);
+    try {
+      const text = await res.text();
+      if (text) data = await decryptPayload<T>(JSON.parse(text));
+    } catch {
+      // Unreadable or undecryptable: leave data as null and let the status code speak.
+    }
   }
 
   return { ok: res.ok, status: res.status, data };

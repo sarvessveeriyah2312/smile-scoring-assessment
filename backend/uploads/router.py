@@ -1,17 +1,16 @@
-import base64
 import logging
 
 from cryptography.exceptions import InvalidTag
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from payload_crypto import decrypt_bytes, decrypt_value
+from payload_crypto import decrypt_bytes, decrypt_value, encrypt_bytes
 from uploads import smile, storage
 from uploads.models import SmileAnalysis, Upload
-from uploads.schemas import UploadResponse, UploadWithData
+from uploads.schemas import UploadResponse
 from users.models import User
 from users.session import get_current_user
 
@@ -86,22 +85,45 @@ async def list_uploads(user: User = Depends(get_current_user), db: AsyncSession 
     return result.all()
 
 
-@router.get("/{upload_id}", response_model=UploadWithData)
-async def get_upload(upload_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def _own_upload(upload_id: int, user: User, db: AsyncSession) -> Upload:
     upload = await db.get(Upload, upload_id)
+    # Someone else's image looks exactly like a missing one.
     if upload is None or upload.user_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "We couldn't find that image.")
+    return upload
 
 
-    data = base64.b64encode(storage.read(upload.stored_name)).decode()
-    return UploadWithData(**UploadResponse.model_validate(upload).model_dump(), data=data)
+@router.get("/{upload_id}", response_model=UploadResponse)
+async def get_upload(upload_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    return await _own_upload(upload_id, user, db)
+
+
+@router.get("/{upload_id}/image")
+async def get_upload_image(
+    upload_id: int,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """The image itself, encrypted, as raw bytes. The browser decrypts it before showing it."""
+    upload = await _own_upload(upload_id, user, db)
+
+    # An image never changes once uploaded, so its stored name works as a version tag.
+    # "no-cache" means the browser may keep a copy but must check back every time,
+    # so the login and ownership checks above still run on every view. When its
+    # copy is current we answer 304 and skip sending the file again.
+    etag = f'"{upload.stored_name}"'
+    headers = {"ETag": etag, "Cache-Control": "private, no-cache"}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+
+    data = await run_in_threadpool(storage.read, upload.stored_name)
+    return Response(content=encrypt_bytes(data), media_type="application/octet-stream", headers=headers)
 
 
 @router.delete("/{upload_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_upload(upload_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    upload = await db.get(Upload, upload_id)
-    if upload is None or upload.user_id != user.id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "We couldn't find that image.")
+    upload = await _own_upload(upload_id, user, db)
 
     stored_name = upload.stored_name
     await db.delete(upload)

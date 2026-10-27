@@ -30,9 +30,14 @@ def decrypt_value(token: str) -> Any:
     return json.loads(plaintext)
 
 
+def encrypt_bytes(data: bytes) -> bytes:
+    # For files: same nonce + ciphertext layout, just raw bytes instead of
+    # base64'd JSON, so a 10 MB image stays about 10 MB on the wire.
+    nonce = os.urandom(_NONCE_SIZE)
+    return nonce + _aesgcm.encrypt(nonce, data, None)
+
+
 def decrypt_bytes(raw: bytes) -> bytes:
-    # For file uploads: same nonce + ciphertext layout, just raw bytes instead
-    # of base64'd JSON, so a 10 MB image stays about 10 MB on the wire.
     return _aesgcm.decrypt(raw[:_NONCE_SIZE], raw[_NONCE_SIZE:], None)
 
 

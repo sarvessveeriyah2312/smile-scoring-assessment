@@ -34,6 +34,11 @@ export async function encryptBytes(bytes: ArrayBuffer): Promise<Uint8Array<Array
   return out;
 }
 
+export async function decryptBytes(raw: ArrayBuffer): Promise<ArrayBuffer> {
+  const bytes = new Uint8Array(raw);
+  return crypto.subtle.decrypt({ name: "AES-GCM", iv: bytes.subarray(0, NONCE_SIZE) }, await getKey(), bytes.subarray(NONCE_SIZE));
+}
+
 export async function decryptValue<T = unknown>(token: string): Promise<T> {
   const raw = fromBase64(token);
   const plaintext = await crypto.subtle.decrypt(

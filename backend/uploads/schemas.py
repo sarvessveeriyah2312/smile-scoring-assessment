@@ -23,6 +23,3 @@ class UploadResponse(BaseModel):
     # None for images uploaded before scoring existed, or if the analysis failed.
     smile: SmileResponse | None
 
-
-class UploadWithData(UploadResponse):
-    data: str
