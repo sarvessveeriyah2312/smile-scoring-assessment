@@ -3,19 +3,19 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useActionState } from "react";
+import { type User, useAuth } from "@/auth/auth-provider";
 import { FormField } from "@/components/form-field";
 import { apiFetch } from "@/lib/api";
 
 type State =
   | { status: "idle" }
   | { status: "error"; message: string; email: string }
-  | { status: "success"; email: string };
+  | { status: "success"; user: User };
 
 async function login(_prev: State, formData: FormData): Promise<State> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
 
-  // Save a round trip when it's obvious nothing will match.
   if (!email || !password) {
     return {
       status: "error",
@@ -26,7 +26,7 @@ async function login(_prev: State, formData: FormData): Promise<State> {
 
   let res;
   try {
-    res = await apiFetch<{ email?: string; detail?: unknown }>("/auth/login", {
+    res = await apiFetch<User>("/auth/login", {
       body: { email, password },
     });
   } catch {
@@ -38,10 +38,8 @@ async function login(_prev: State, formData: FormData): Promise<State> {
     };
   }
 
-  if (res.ok) return { status: "success", email: res.data?.email ?? email };
+  if (res.ok && res.data) return { status: "success", user: res.data };
 
-  // 401 is a wrong email/password, and 422 means the email wasn't even valid.
-  // Either way it's the same answer from the user's point of view.
   if (res.status === 401 || res.status === 422) {
     return {
       status: "error",
@@ -72,18 +70,24 @@ export function JustRegisteredNotice() {
 }
 
 export function LoginForm({ notice }: { notice?: React.ReactNode }) {
-  const [state, formAction, pending] = useActionState(login, {
-    status: "idle",
-  });
+  const { setUser } = useAuth();
 
-  // Once they're in, "your account is ready" has done its job, so drop it.
+  const [state, formAction, pending] = useActionState(
+    async (prev: State, formData: FormData) => {
+      const next = await login(prev, formData);
+      if (next.status === "success") setUser(next.user);
+      return next;
+    },
+    { status: "idle" },
+  );
+  
   if (state.status === "success") {
     return (
       <div
         role="status"
         className="mt-6 rounded-lg bg-green-50 p-4 text-sm text-green-800 dark:bg-green-950 dark:text-green-200"
       >
-        Welcome back, <strong>{state.email}</strong>. You&apos;re logged in.
+        Welcome back, <strong>{state.user.email}</strong>. You&apos;re logged in.
       </div>
     );
   }

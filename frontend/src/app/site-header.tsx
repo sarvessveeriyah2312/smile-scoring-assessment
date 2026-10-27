@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeaderAccount } from "@/auth/header-account";
 import { ThemeToggle } from "@/theme/theme-toggle";
 
 export function SiteHeader() {
@@ -10,12 +11,7 @@ export function SiteHeader() {
         </Link>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Link
-            href="/register"
-            className="rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
-          >
-            Get started
-          </Link>
+          <HeaderAccount />
         </div>
       </div>
     </header>

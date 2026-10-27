@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/auth/auth-provider";
 import { ThemeScript } from "@/theme/theme-script";
 import { SiteHeader } from "./site-header";
 
@@ -23,16 +24,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-      // The theme script sets data-theme before React loads, so the server and
-      // browser will always disagree on this one attribute. That's expected.
       suppressHydrationWarning
     >
       <head>
         <ThemeScript />
       </head>
       <body className="min-h-full flex flex-col">
-        <SiteHeader />
-        {children}
+        <AuthProvider>
+          <SiteHeader />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

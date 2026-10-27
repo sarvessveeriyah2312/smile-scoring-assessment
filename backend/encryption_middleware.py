@@ -74,17 +74,19 @@ def _encrypting_send(send: Send) -> Send:
             return
 
         body = b"".join(chunks)
-        headers = dict(start["headers"])
-        is_json = headers.get(b"content-type", b"").startswith(b"application/json")
+        headers = list(start["headers"])
+        content_type = next((v for k, v in headers if k.lower() == b"content-type"), b"")
+        is_json = content_type.startswith(b"application/json")
 
         if is_json and body:
             data = json.loads(body)
             if not isinstance(data, dict):
                 data = {"data": data}
             body = json.dumps(encrypt_payload(data)).encode()
-            headers[b"content-length"] = str(len(body)).encode()
+            headers = [(k, v) for k, v in headers if k.lower() != b"content-length"]
+            headers.append((b"content-length", str(len(body)).encode()))
 
-        await send({**start, "headers": list(headers.items())})
+        await send({**start, "headers": headers})
         await send({"type": "http.response.body", "body": body})
 
     return wrapped
