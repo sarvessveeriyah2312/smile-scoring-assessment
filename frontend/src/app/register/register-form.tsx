@@ -1,13 +1,17 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useActionState } from "react";
+import { FormField } from "@/components/form-field";
+import { apiFetch } from "@/lib/api";
 
 type FieldErrors = { email?: string; password?: string };
 
 type State =
   | { status: "idle" }
   | { status: "error"; message?: string; fields?: FieldErrors; email: string }
-  | { status: "success"; email: string };
+  | { status: "success" };
 
 const FRIENDLY_MESSAGES: Record<keyof FieldErrors, string> = {
   email: "That doesn't look like a valid email address.",
@@ -18,23 +22,25 @@ async function register(_prev: State, formData: FormData): Promise<State> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
 
-  let res: Response;
+  type RegisterResponse = {
+    email?: string;
+    detail?: string | { loc?: string[] }[];
+  };
+
+  let res;
   try {
-    res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+    res = await apiFetch<RegisterResponse>("/auth/register", { body: { email, password } });
   } catch {
     return { status: "error", email, message: "We couldn't reach the server. Check your connection and try again." };
   }
 
-  if (res.ok) return { status: "success", email };
+  const body = res.data;
 
-  const body = await res.json().catch(() => null);
+  if (res.ok) return { status: "success" };
 
   if (res.status === 409) {
-    return { status: "error", email, fields: { email: body?.detail ?? "That email is already registered." } };
+    const message = typeof body?.detail === "string" ? body.detail : "That email is already registered.";
+    return { status: "error", email, fields: { email: message } };
   }
 
   if (res.status === 422 && Array.isArray(body?.detail)) {
@@ -50,15 +56,15 @@ async function register(_prev: State, formData: FormData): Promise<State> {
 }
 
 export function RegisterForm() {
-  const [state, formAction, pending] = useActionState(register, { status: "idle" });
+  const router = useRouter();
 
-  if (state.status === "success") {
-    return (
-      <div role="status" className="mt-6 rounded-lg bg-green-50 p-4 text-sm text-green-800 dark:bg-green-950 dark:text-green-200">
-        You&apos;re all set! We&apos;ve created an account for <strong>{state.email}</strong>.
-      </div>
-    );
-  }
+  const [state, formAction, pending] = useActionState(async (prev: State, formData: FormData) => {
+    const next = await register(prev, formData);
+    // Account's ready, so send them straight to log in with it. The flag just
+    // tells the login page to say "your account is ready".
+    if (next.status === "success") router.push("/login?registered=1");
+    return next;
+  }, { status: "idle" });
 
   const fields = state.status === "error" ? state.fields : undefined;
 
@@ -70,7 +76,7 @@ export function RegisterForm() {
         </p>
       )}
 
-      <Field
+      <FormField
         label="Email"
         name="email"
         type="email"
@@ -79,7 +85,7 @@ export function RegisterForm() {
         defaultValue={state.status === "error" ? state.email : ""}
         error={fields?.email}
       />
-      <Field
+      <FormField
         label="Password"
         name="password"
         type="password"
@@ -93,45 +99,15 @@ export function RegisterForm() {
         disabled={pending}
         className="mt-2 h-11 rounded-lg bg-foreground font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-60 dark:hover:bg-[#ccc]"
       >
-        {pending ? "Creating your account…" : "Create account"}
+        {pending || state.status === "success" ? "Creating your account…" : "Create account"}
       </button>
+
+      <p className="text-center text-sm text-zinc-600 dark:text-zinc-400">
+        Already have an account?{" "}
+        <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
+          Log in
+        </Link>
+      </p>
     </form>
-  );
-}
-
-function Field({
-  label,
-  name,
-  error,
-  hint,
-  ...input
-}: { label: string; name: string; error?: string; hint?: string } & React.ComponentProps<"input">) {
-  const describedBy = error ? `${name}-error` : hint ? `${name}-hint` : undefined;
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={name} className="text-sm font-medium">
-        {label}
-      </label>
-      <input
-        id={name}
-        name={name}
-        aria-invalid={!!error}
-        aria-describedby={describedBy}
-        className="h-11 rounded-lg border border-black/[.12] bg-transparent px-3 outline-none focus:border-foreground aria-[invalid=true]:border-red-500 dark:border-white/[.18]"
-        {...input}
-      />
-      {error ? (
-        <p id={`${name}-error`} className="text-sm text-red-600 dark:text-red-400">
-          {error}
-        </p>
-      ) : (
-        hint && (
-          <p id={`${name}-hint`} className="text-sm text-zinc-500">
-            {hint}
-          </p>
-        )
-      )}
-    </div>
   );
 }
