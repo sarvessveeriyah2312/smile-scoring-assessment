@@ -1,7 +1,7 @@
 import logging
 
 from cryptography.exceptions import InvalidTag
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +10,7 @@ from database import get_db
 from payload_crypto import decrypt_bytes, decrypt_value, encrypt_bytes
 from uploads import storage
 from uploads.models import SmileAnalysis, Upload
-from task_queue import get_queue
+from uploads.jobs import analyse_upload
 from uploads.schemas import UploadResponse
 from users.models import User
 from users.session import get_current_user
@@ -24,6 +24,7 @@ async def upload_image(
     # Both parts arrive encrypted: the filename like any other value, the file as raw bytes.
     filename: str = Form(),
     file: UploadFile = File(),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -46,7 +47,7 @@ async def upload_image(
         )
     content_type, extension = detected
 
-    stored_name = storage.save(data, extension)
+    stored_name = await run_in_threadpool(storage.save, data, extension)
     upload = Upload(
         user_id=user.id,
         filename=filename,
@@ -59,16 +60,11 @@ async def upload_image(
     try:
         await db.commit()
     except Exception:
-        storage.remove(stored_name)
+        await run_in_threadpool(storage.remove, stored_name)
         raise
 
-    try:
-        queue = await get_queue()
-        await queue.enqueue_job("analyse_upload", upload.id, _job_id=f"analyse_upload:{upload.id}")
-    except Exception:
-        log.exception("Couldn't queue smile analysis for upload %s", upload.id)
-        upload.smile.status = "failed"
-        await db.commit()
+    # Runs right after the response is sent, so the upload doesn't wait for MediaPipe.
+    background_tasks.add_task(analyse_upload, upload.id)
 
     await db.refresh(upload, attribute_names=["created_at", "smile"])
     return upload
@@ -123,4 +119,4 @@ async def delete_upload(upload_id: int, user: User = Depends(get_current_user), 
     stored_name = upload.stored_name
     await db.delete(upload)
     await db.commit()
-    storage.remove(stored_name)
+    await run_in_threadpool(storage.remove, stored_name)

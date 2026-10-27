@@ -2,15 +2,17 @@ import logging
 
 from fastapi.concurrency import run_in_threadpool
 
+from sqlalchemy import select
+
 from database import SessionLocal
 from uploads import storage
-from uploads.models import Upload
+from uploads.models import SmileAnalysis, Upload
 from uploads.smile_cache import analyse_cached
 
 log = logging.getLogger(__name__)
 
 
-async def analyse_upload(ctx: dict, upload_id: int) -> None:
+async def analyse_upload(upload_id: int) -> None:
     async with SessionLocal() as db:
         upload = await db.get(Upload, upload_id)
         # Deleted before we got to it, or already done by an earlier run.
@@ -31,3 +33,11 @@ async def analyse_upload(ctx: dict, upload_id: int) -> None:
             upload.smile.score = result.score
 
         await db.commit()
+
+
+async def resume_pending() -> None:
+    """Picks up analyses that were still pending when the server last stopped."""
+    async with SessionLocal() as db:
+        ids = (await db.scalars(select(SmileAnalysis.upload_id).where(SmileAnalysis.status == "pending"))).all()
+    for upload_id in ids:
+        await analyse_upload(upload_id)

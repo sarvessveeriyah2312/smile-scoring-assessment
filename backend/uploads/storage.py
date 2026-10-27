@@ -1,7 +1,13 @@
+import os
 import secrets
 from pathlib import Path
 
-MEDIA_DIR = Path(__file__).resolve().parent.parent / "media"
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# On Render, point this at the persistent disk (e.g. /var/data/media) so files survive deploys.
+MEDIA_DIR = Path(os.getenv("MEDIA_DIR") or Path(__file__).resolve().parent.parent / "media")
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 MB
 
@@ -23,8 +29,9 @@ def detect_image(data: bytes) -> tuple[str, str] | None:
     return None
 
 
+# These block on disk I/O, so call them via run_in_threadpool from async code.
 def save(data: bytes, extension: str) -> str:
-    MEDIA_DIR.mkdir(exist_ok=True)
+    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
     stored_name = secrets.token_hex(16) + extension
     (MEDIA_DIR / stored_name).write_bytes(data)
     return stored_name

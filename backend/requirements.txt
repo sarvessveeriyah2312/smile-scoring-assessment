@@ -7,4 +7,3 @@ cryptography
 mediapipe
 pillow
 redis
-arq
