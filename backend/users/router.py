@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from users.models import User
+from users.rate_limit import check_login_allowed, clear_failures, client_ip, record_failure
 from users.schemas import LoginRequest, RegisterRequest, UserResponse
 from users.security import hash_password, verify_password
 from users.session import SESSION_COOKIE, end_session, get_current_user, start_session
@@ -35,13 +36,18 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
 
 
 @router.post("/login", response_model=UserResponse)
-async def login(payload: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
-    user = await db.scalar(select(User).where(User.email == payload.email.lower()))
+async def login(payload: LoginRequest, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    email, ip = payload.email.lower(), client_ip(request)
+    await check_login_allowed(email, ip)
+
+    user = await db.scalar(select(User).where(User.email == email))
 
     password_ok = verify_password(payload.password, user.password_hash if user else _DUMMY_HASH)
     if not user or not password_ok:
+        await record_failure(email, ip)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "That email and password don't match our records.")
 
+    await clear_failures(email)
     await start_session(response, user, db)
     return user
 

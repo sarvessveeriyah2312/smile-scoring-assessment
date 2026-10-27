@@ -40,6 +40,15 @@ async function login(_prev: State, formData: FormData): Promise<State> {
 
   if (res.ok && res.data) return { status: "success", user: res.data };
 
+  if (res.status === 429) {
+    const detail = (res.data as { detail?: unknown } | null)?.detail;
+    return {
+      status: "error",
+      email,
+      message: typeof detail === "string" ? detail : "Too many failed attempts. Please try again later.",
+    };
+  }
+
   if (res.status === 401 || res.status === 422) {
     return {
       status: "error",

@@ -6,3 +6,4 @@ pwdlib[argon2]
 cryptography
 mediapipe
 pillow
+redis

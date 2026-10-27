@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from cache import redis
 from database import Base, engine
 from encryption_middleware import PayloadEncryptionMiddleware
 from uploads import models as upload_models  # noqa: F401  (registers the uploads table)
@@ -21,6 +22,7 @@ async def lifespan(app: FastAPI):
     smile.load()
     yield
     await engine.dispose()
+    await redis.aclose()
 
 
 app = FastAPI(lifespan=lifespan)
