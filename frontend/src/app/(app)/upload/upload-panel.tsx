@@ -1,17 +1,26 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { apiUpload } from "@/lib/api";
 import { type Smile, smileLabel } from "@/lib/smile";
 
-type QueuedFile = { key: string; file: File; status: "uploading" | "done" | "error"; error?: string; smile?: Smile | null };
+type QueuedFile = {
+  key: string;
+  file: File;
+  status: "uploading" | "done" | "error";
+  error?: string;
+  uploadId?: number;
+  smile?: Smile | null;
+};
 
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_BYTES = 10 * 1024 * 1024;
 
 export function UploadPanel() {
+  const router = useRouter();
   const [queue, setQueue] = useState<QueuedFile[]>([]);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -35,16 +44,19 @@ export function UploadPanel() {
       }),
     ]);
 
+    const uploadedIds: number[] = [];
+
     // One at a time. Big images are held in memory while they're encrypted,
     // so doing them all at once could get heavy.
     for (const { key, file } of incoming) {
       if (!ACCEPTED_TYPES.includes(file.type) || file.size > MAX_BYTES) continue;
 
       try {
-        const res = await apiUpload<{ detail?: string; smile?: Smile | null }>("/uploads", file);
-        if (res.ok) {
+        const res = await apiUpload<{ id?: number; detail?: string; smile?: Smile | null }>("/uploads", file);
+        if (res.ok && res.data?.id) {
+          uploadedIds.push(res.data.id);
           // Leave it in the list as done, so people can see it worked.
-          updateQueued(key, { status: "done", smile: res.data?.smile ?? null });
+          updateQueued(key, { status: "done", uploadId: res.data.id, smile: res.data.smile ?? null });
         } else if (res.status === 401) {
           updateQueued(key, { status: "error", error: "Your session has ended. Please log in again." });
         } else {
@@ -54,7 +66,8 @@ export function UploadPanel() {
         updateQueued(key, { status: "error", error: "We couldn't reach the server. Check your connection and try again." });
       }
     }
-  }, []);
+    if (incoming.length === 1 && uploadedIds.length === 1) router.push(`/upload-history/${uploadedIds[0]}`);
+  }, [router]);
 
   return (
     <div className="mt-6 flex flex-col gap-8">
@@ -112,8 +125,8 @@ export function UploadPanel() {
                 <>
                   <span className="text-green-700 dark:text-green-400">Uploaded</span>
                   <span className="text-zinc-600 tabular-nums dark:text-zinc-400">{describeResult(item.smile)}</span>
-                  <Link href="/upload-history" className="text-zinc-500 underline-offset-4 hover:text-foreground hover:underline">
-                    View in history
+                  <Link href={`/upload-history/${item.uploadId}`} className="text-zinc-500 underline-offset-4 hover:text-foreground hover:underline">
+                    View details
                   </Link>
                 </>
               ) : (

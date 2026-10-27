@@ -5,9 +5,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/auth/auth-provider";
 import { SmileScore } from "@/components/smile-score";
 import { apiFetch } from "@/lib/api";
-import type { Smile } from "@/lib/smile";
-
-type Upload = { id: number; filename: string; content_type: string; size: number; created_at: string; smile: Smile | null };
+import { type Upload, formatDate, formatSize, useUploadImage } from "@/lib/uploads";
 
 export function HistoryList() {
   const { user } = useAuth();
@@ -83,12 +81,14 @@ function HistoryCard({ upload, onDeleted }: { upload: Upload; onDeleted: () => v
 
   return (
     <li className={`overflow-hidden rounded-xl border border-black/[.08] dark:border-white/[.145] ${step === "deleting" ? "opacity-50" : ""}`}>
-      <Thumbnail upload={upload} />
+      <Link href={`/upload-history/${upload.id}`} aria-label={`View details for ${upload.filename}`}>
+        <Thumbnail upload={upload} />
+      </Link>
       <div className="flex flex-col gap-2 px-3 py-2">
         <div>
-          <p className="truncate text-sm font-medium" title={upload.filename}>
+          <Link href={`/upload-history/${upload.id}`} className="block truncate text-sm font-medium underline-offset-4 hover:underline" title={upload.filename}>
             {upload.filename}
-          </p>
+          </Link>
           <p className="text-xs text-zinc-500">
             {formatSize(upload.size)} · {formatDate(upload.created_at)}
           </p>
@@ -138,32 +138,8 @@ function HistoryCard({ upload, onDeleted }: { upload: Upload; onDeleted: () => v
   );
 }
 
-// Images come back encrypted like everything else, so we fetch each one,
-// decrypt it, and turn it into a local URL the <img> tag can use.
 function Thumbnail({ upload }: { upload: Upload }) {
-  const [src, setSrc] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let url: string | null = null;
-    let cancelled = false;
-
-    apiFetch<{ data: string }>(`/uploads/${upload.id}`)
-      .then((res) => {
-        if (cancelled) return;
-        if (!res.ok || !res.data) return setFailed(true);
-        const bytes = Uint8Array.from(atob(res.data.data), (c) => c.charCodeAt(0));
-        url = URL.createObjectURL(new Blob([bytes], { type: upload.content_type }));
-        setSrc(url);
-      })
-      .catch(() => !cancelled && setFailed(true));
-
-    // Free the memory once the thumbnail is gone.
-    return () => {
-      cancelled = true;
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [upload.id, upload.content_type]);
+  const { src, failed } = useUploadImage(upload.id, upload.content_type);
 
   return (
     <div className="flex aspect-square items-center justify-center bg-black/[.03] dark:bg-white/[.04]">
@@ -176,14 +152,4 @@ function Thumbnail({ upload }: { upload: Upload }) {
       )}
     </div>
   );
-}
-
-function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
