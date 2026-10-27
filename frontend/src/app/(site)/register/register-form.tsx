@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { FormField } from "@/components/form-field";
 import { apiFetch } from "@/lib/api";
 
@@ -15,12 +15,26 @@ type State =
 
 const FRIENDLY_MESSAGES: Record<keyof FieldErrors, string> = {
   email: "That doesn't look like a valid email address.",
-  password: "Your password needs to be between 8 and 128 characters.",
+  password: "Use 8–128 characters with at least one letter, one number and one symbol.",
 };
+
+// Same rules as RegisterRequest in backend/users/schemas.py.
+function passwordRules(password: string) {
+  return [
+    { label: "At least 8 characters", met: password.length >= 8 && password.length <= 128 },
+    { label: "A letter", met: /\p{L}/u.test(password) },
+    { label: "A number", met: /\p{N}/u.test(password) },
+    { label: "A symbol, like ! @ # or ?", met: /[^\p{L}\p{N}\s]/u.test(password) },
+  ];
+}
 
 async function register(_prev: State, formData: FormData): Promise<State> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+
+  if (passwordRules(password).some((rule) => !rule.met)) {
+    return { status: "error", email, fields: { password: FRIENDLY_MESSAGES.password } };
+  }
 
   type RegisterResponse = {
     email?: string;
@@ -57,9 +71,12 @@ async function register(_prev: State, formData: FormData): Promise<State> {
 
 export function RegisterForm() {
   const router = useRouter();
+  const [password, setPassword] = useState("");
 
   const [state, formAction, pending] = useActionState(async (prev: State, formData: FormData) => {
     const next = await register(prev, formData);
+    // React clears the form after submitting, so clear the checklist with it.
+    setPassword("");
     // Account's ready, so send them straight to log in with it. The flag just
     // tells the login page to say "your account is ready".
     if (next.status === "success") router.push("/login?registered=1");
@@ -90,9 +107,21 @@ export function RegisterForm() {
         name="password"
         type="password"
         autoComplete="new-password"
-        hint="At least 8 characters."
+        onChange={(e) => setPassword(e.target.value)}
+        aria-describedby={fields?.password ? "password-error password-rules" : "password-rules"}
         error={fields?.password}
       />
+      <ul id="password-rules" className="-mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+        {passwordRules(password).map((rule) => (
+          <li key={rule.label} className={`flex items-center gap-1.5 ${rule.met ? "text-green-700 dark:text-green-400" : "text-zinc-500"}`}>
+            <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              {rule.met ? <path d="m5 12 5 5 9-10" /> : <circle cx="12" cy="12" r="3" />}
+            </svg>
+            {rule.label}
+            <span className="sr-only">{rule.met ? "(done)" : "(not yet)"}</span>
+          </li>
+        ))}
+      </ul>
 
       <button
         type="submit"

@@ -183,7 +183,7 @@ All routes are under `/api` when called through the frontend. Request bodies and
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `POST` | `/auth/register` | – | Create an account (email, password ≥ 8 chars) |
+| `POST` | `/auth/register` | – | Create an account (email; password 8–128 chars with a letter, a number and a symbol) |
 | `POST` | `/auth/login` | – | Log in; sets the `session` cookie. Rate limited. |
 | `POST` | `/auth/logout` | – | Revokes the session and clears the cookie |
 | `GET` | `/auth/me` | ✓ | The logged-in user |
@@ -200,7 +200,7 @@ Smile results have a `status` of `pending`, `done` or `failed`.
 ## Security
 
 - **Payload encryption**: JSON request values and response values are encrypted with AES-256-GCM (one random nonce per value; keys stay readable). Uploads are multipart with the file bytes and filename encrypted, and images are served as encrypted bytes. The browser decrypts them before display. The key ships in the frontend bundle, so this keeps data out of plain view; **HTTPS remains the real protection**.
-- **Passwords** are hashed with Argon2. Failed logins take the same time whether or not the email exists.
+- **Passwords** need 8–128 characters with at least one letter, one number and one symbol, and are hashed with Argon2. Failed logins take the same time whether or not the email exists.
 - **Sessions** are random tokens in an `httpOnly`, `SameSite=Lax` cookie (`Secure` in production). Only a SHA-256 hash is stored, and logout deletes it server-side, so a copied token stops working immediately.
 - **Login rate limiting**: 5 failures per email and 20 per IP within 15 minutes, then HTTP 429 (Redis).
 - **Uploads** are checked by their actual bytes, not filename or claimed type. Users can only see or delete their own images; anything else returns 404.
