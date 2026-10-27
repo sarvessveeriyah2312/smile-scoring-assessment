@@ -1,1 +1,5 @@
 fastapi[standard]
+sqlalchemy[asyncio]
+asyncpg
+python-dotenv
+pwdlib[argon2]
