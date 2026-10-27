@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/auth/auth-provider";
 import { SmileScore } from "@/components/smile-score";
 import { apiFetch } from "@/lib/api";
-import { smileLabel } from "@/lib/smile";
+import { isScored, smileLabel } from "@/lib/smile";
 import { type Upload, formatDate, formatSize, useUploadImage } from "@/lib/uploads";
 import { useBreadcrumbLabel } from "../../breadcrumbs";
 
@@ -38,6 +38,27 @@ export function UploadDetails({ id }: { id: number }) {
       cancelled = true;
     };
   }, [id, userId, validId]);
+
+  // The score is worked out in the background. Check every 1.5s, and after two
+  // minutes stop and say it's taking a while rather than polling forever.
+  const [slow, setSlow] = useState(false);
+  const pending = upload?.smile?.status === "pending";
+  useEffect(() => {
+    if (!pending) return;
+    let tries = 0;
+    const timer = setInterval(() => {
+      if (++tries > 80) {
+        clearInterval(timer);
+        setSlow(true);
+        return;
+      }
+      apiFetch<Upload>(`/uploads/${id}`).then(
+        (res) => res.ok && res.data && setUpload(res.data),
+        () => {},
+      );
+    }, 1500);
+    return () => clearInterval(timer);
+  }, [pending, id]);
 
   if (!validId || problem === "not-found") {
     return (
@@ -75,7 +96,7 @@ export function UploadDetails({ id }: { id: number }) {
           </div>
         </section>
 
-        <Breakdown upload={upload} />
+        <Breakdown upload={upload} slow={slow} />
 
         <div className="flex gap-3">
           <Link
@@ -113,7 +134,7 @@ function Preview({ upload }: { upload: Upload }) {
 }
 
 // Walks through exactly how this image's number was reached, with its own values.
-function Breakdown({ upload }: { upload: Upload }) {
+function Breakdown({ upload, slow }: { upload: Upload; slow: boolean }) {
   const smile = upload.smile;
 
   if (!smile) {
@@ -124,7 +145,26 @@ function Breakdown({ upload }: { upload: Upload }) {
     );
   }
 
-  if (!smile.face_found || smile.score === null || smile.smile_left === null || smile.smile_right === null) {
+  if (smile.status === "pending") {
+    return (
+      <p className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-foreground dark:border-zinc-700" aria-hidden="true" />
+        {slow
+          ? "This is taking longer than usual. Refresh the page in a minute to check again."
+          : "Analysing the photo with MediaPipe. The score will appear here in a moment."}
+      </p>
+    );
+  }
+
+  if (smile.status === "failed") {
+    return (
+      <p className="text-sm text-red-600 dark:text-red-400">
+        Something went wrong while analysing this image, so it doesn&apos;t have a score. Try uploading it again.
+      </p>
+    );
+  }
+
+  if (!isScored(smile)) {
     return (
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
         MediaPipe Face Landmarker couldn&apos;t find a face in this image, so there&apos;s nothing to score. Clear, front-on photos

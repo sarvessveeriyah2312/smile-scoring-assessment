@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/auth/auth-provider";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SmileScore } from "@/components/smile-score";
 import { apiFetch } from "@/lib/api";
-import { type Smile, smileLabel } from "@/lib/smile";
+import { type Smile, smileSummary } from "@/lib/smile";
 import { type Upload, formatDate, formatSize, useUploadImage } from "@/lib/uploads";
 
 export function HistoryList() {
@@ -14,16 +14,26 @@ export function HistoryList() {
   const [uploads, setUploads] = useState<Upload[] | null>(null);
   const [loadError, setLoadError] = useState(false);
 
-  const userId = user?.id;
-  useEffect(() => {
-    // Nobody logged in yet (or we're still checking), so there's nothing to load.
-    if (!userId) return;
+  const load = useCallback(() => {
     // Lists come back wrapped as { data: [...] } so the encryption has a key to work with.
     apiFetch<{ data: Upload[] }>("/uploads").then(
       (res) => (res.ok && res.data ? setUploads(res.data.data) : setLoadError(true)),
       () => setLoadError(true),
     );
-  }, [userId]);
+  }, []);
+
+  const userId = user?.id;
+  useEffect(() => {
+    if (userId) load();
+  }, [userId, load]);
+
+  // Scores are worked out in the background, so keep checking while any are still coming.
+  const hasPending = uploads?.some((u) => u.smile?.status === "pending") ?? false;
+  useEffect(() => {
+    if (!hasPending) return;
+    const timer = setInterval(load, 3000);
+    return () => clearInterval(timer);
+  }, [hasPending, load]);
 
   if (loadError) {
     return <p className="mt-6 text-sm text-red-600 dark:text-red-400">We couldn&apos;t load your uploads. Try refreshing the page.</p>;
@@ -140,8 +150,7 @@ function HistoryCard({ upload, onDeleted }: { upload: Upload; onDeleted: () => v
 
 // The headline number, pinned to the photo so it's the first thing you see.
 function ScoreBadge({ smile }: { smile: Smile | null }) {
-  const scored = smile?.face_found && smile.score !== null;
-  const text = !smile ? "Not scored" : scored ? `${Math.round(smile.score!)} · ${smileLabel(smile.score!)}` : "No face";
+  const text = smileSummary(smile);
 
   return (
     <span className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium tabular-nums text-white backdrop-blur">

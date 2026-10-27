@@ -10,7 +10,7 @@ from database import get_db
 from payload_crypto import decrypt_bytes, decrypt_value, encrypt_bytes
 from uploads import storage
 from uploads.models import SmileAnalysis, Upload
-from uploads.smile_cache import analyse_cached
+from task_queue import get_queue
 from uploads.schemas import UploadResponse
 from users.models import User
 from users.session import get_current_user
@@ -46,13 +46,6 @@ async def upload_image(
         )
     content_type, extension = detected
 
-    # If analysis falls over, the upload still goes through; it just won't have a score.
-    try:
-        result = await analyse_cached(data)
-    except Exception:
-        log.exception("Smile analysis failed for %r", filename)
-        result = None
-
     stored_name = storage.save(data, extension)
     upload = Upload(
         user_id=user.id,
@@ -61,19 +54,21 @@ async def upload_image(
         content_type=content_type,
         size=len(data),
     )
-    if result is not None:
-        upload.smile = SmileAnalysis(
-            face_found=result.face_found,
-            smile_left=result.smile_left,
-            smile_right=result.smile_right,
-            score=result.score,
-        )
+    upload.smile = SmileAnalysis(status="pending")
     db.add(upload)
     try:
         await db.commit()
     except Exception:
         storage.remove(stored_name)
         raise
+
+    try:
+        queue = await get_queue()
+        await queue.enqueue_job("analyse_upload", upload.id, _job_id=f"analyse_upload:{upload.id}")
+    except Exception:
+        log.exception("Couldn't queue smile analysis for upload %s", upload.id)
+        upload.smile.status = "failed"
+        await db.commit()
 
     await db.refresh(upload, attribute_names=["created_at", "smile"])
     return upload

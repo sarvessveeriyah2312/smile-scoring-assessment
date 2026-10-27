@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { apiUpload } from "@/lib/api";
-import { type Smile, smileLabel } from "@/lib/smile";
+import { type Smile, smileSummary } from "@/lib/smile";
 
 type QueuedFile = {
   key: string;
@@ -146,7 +146,5 @@ export function UploadPanel() {
 }
 
 function describeResult(smile: Smile | null | undefined) {
-  if (!smile) return "Couldn't score this one";
-  if (!smile.face_found || smile.score === null) return "No face found";
-  return `Smile ${Math.round(smile.score)}/100 · ${smileLabel(smile.score)}`;
+  return smile ? smileSummary(smile) : "Couldn't score this one";
 }

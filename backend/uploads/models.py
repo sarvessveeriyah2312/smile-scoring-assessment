@@ -31,8 +31,10 @@ class SmileAnalysis(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     upload_id: Mapped[int] = mapped_column(ForeignKey("uploads.id", ondelete="CASCADE"), unique=True)
-    # False when MediaPipe couldn't find a face. The numbers below are then empty.
-    face_found: Mapped[bool] = mapped_column(Boolean)
+    # pending -> done, or failed. The worker fills in the rest when it's done.
+    status: Mapped[str] = mapped_column(String(16), server_default="done")
+    # False when MediaPipe couldn't find a face. Empty until the analysis has run.
+    face_found: Mapped[bool | None] = mapped_column(Boolean)
     # The raw blendshape values, 0 to 1, kept so any score can be explained later.
     smile_left: Mapped[float | None] = mapped_column(Float)
     smile_right: Mapped[float | None] = mapped_column(Float)
