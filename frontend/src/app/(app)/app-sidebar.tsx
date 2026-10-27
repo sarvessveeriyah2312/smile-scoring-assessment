@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useLayoutEffect, useSyncExternalStore } from "react";
+import { Suspense, useLayoutEffect, useSyncExternalStore } from "react";
 import { isSidebarCollapsed, restoreSidebar, setSidebarCollapsed, subscribeToSidebar } from "@/sidebar/sidebar";
 
 const NAV_ITEMS = [
@@ -11,7 +11,6 @@ const NAV_ITEMS = [
 ];
 
 export function AppSidebar() {
-  const pathname = usePathname();
   // Only used for the button's label and aria state. The actual width is
   // all CSS, driven by data-sidebar on <html>.
   const collapsed = useSyncExternalStore(subscribeToSidebar, isSidebarCollapsed, () => false);
@@ -40,7 +39,16 @@ export function AppSidebar() {
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-black/[.04] hover:text-foreground dark:hover:bg-white/[.06]"
           >
-            <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg
+              className="h-[18px] w-[18px]"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <rect x="3" y="4" width="18" height="16" rx="2" />
               <path d="M9 4v16" />
             </svg>
@@ -48,36 +56,62 @@ export function AppSidebar() {
         </div>
 
         <nav aria-label="App" className="flex gap-1 overflow-x-auto px-4 py-3 md:flex-1 md:flex-col md:px-3 md:py-6">
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href || pathname.startsWith(`${href}/`);
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-current={active ? "page" : undefined}
-                // When the label is hidden, the tooltip is the only way to know what an icon is.
-                title={collapsed ? label : undefined}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors [[data-sidebar=collapsed]_&]:md:justify-center [[data-sidebar=collapsed]_&]:md:px-0 ${
-                  active
-                    ? "bg-black/[.06] text-foreground dark:bg-white/[.1]"
-                    : "text-zinc-600 hover:bg-black/[.04] hover:text-foreground dark:text-zinc-400 dark:hover:bg-white/[.06]"
-                }`}
-              >
-                <Icon />
-                {/* sr-only rather than removed, so screen readers still hear "Upload". */}
-                <span className="truncate [[data-sidebar=collapsed]_&]:md:sr-only">{label}</span>
-              </Link>
-            );
-          })}
+          {/* On pages like /upload-history/42 the URL isn't known until the request
+              comes in, so reading it has to wait inside Suspense. Meanwhile the same
+              links show, just without the highlight. */}
+          <Suspense fallback={<NavLinks pathname={null} collapsed={collapsed} />}>
+            <CurrentNavLinks collapsed={collapsed} />
+          </Suspense>
         </nav>
       </div>
     </aside>
   );
 }
 
+function CurrentNavLinks({ collapsed }: { collapsed: boolean }) {
+  return <NavLinks pathname={usePathname()} collapsed={collapsed} />;
+}
+
+function NavLinks({ pathname, collapsed }: { pathname: string | null; collapsed: boolean }) {
+  return (
+    <>
+      {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        const active = pathname !== null && (pathname === href || pathname.startsWith(`${href}/`));
+        return (
+          <Link
+            key={href}
+            href={href}
+            aria-current={active ? "page" : undefined}
+            // When the label is hidden, the tooltip is the only way to know what an icon is.
+            title={collapsed ? label : undefined}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors [[data-sidebar=collapsed]_&]:md:justify-center [[data-sidebar=collapsed]_&]:md:px-0 ${
+              active
+                ? "bg-black/[.06] text-foreground dark:bg-white/[.1]"
+                : "text-zinc-600 hover:bg-black/[.04] hover:text-foreground dark:text-zinc-400 dark:hover:bg-white/[.06]"
+            }`}
+          >
+            <Icon />
+            {/* sr-only rather than removed, so screen readers still hear "Upload". */}
+            <span className="truncate [[data-sidebar=collapsed]_&]:md:sr-only">{label}</span>
+          </Link>
+        );
+      })}
+    </>
+  );
+}
+
 function UploadIcon() {
   return (
-    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      className="h-4 w-4 shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M12 16V4M7 9l5-5 5 5" />
       <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
     </svg>
@@ -86,7 +120,16 @@ function UploadIcon() {
 
 function HistoryIcon() {
   return (
-    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      className="h-4 w-4 shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
       <path d="M3 3v5h5" />
       <path d="M12 7v5l3 2" />
