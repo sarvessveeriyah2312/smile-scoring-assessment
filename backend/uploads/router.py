@@ -8,8 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from payload_crypto import decrypt_bytes, decrypt_value, encrypt_bytes
-from uploads import smile, storage
+from uploads import storage
 from uploads.models import SmileAnalysis, Upload
+from uploads.smile_cache import analyse_cached
 from uploads.schemas import UploadResponse
 from users.models import User
 from users.session import get_current_user
@@ -45,10 +46,9 @@ async def upload_image(
         )
     content_type, extension = detected
 
-    # MediaPipe is slow, CPU-bound work, so keep it off the event loop.
-    # If it falls over, the upload still goes through; it just won't have a score.
+    # If analysis falls over, the upload still goes through; it just won't have a score.
     try:
-        result = await run_in_threadpool(smile.analyse, data)
+        result = await analyse_cached(data)
     except Exception:
         log.exception("Smile analysis failed for %r", filename)
         result = None
