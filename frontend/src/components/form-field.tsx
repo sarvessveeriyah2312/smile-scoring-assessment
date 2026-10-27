@@ -9,18 +9,22 @@ export function FormField({
   name,
   error,
   hint,
+  labelAside,
   type,
   ...input
-}: { label: string; name: string; error?: string; hint?: string } & React.ComponentProps<"input">) {
+}: { label: string; name: string; error?: string; hint?: string; labelAside?: React.ReactNode } & React.ComponentProps<"input">) {
   const [revealed, setRevealed] = useState(false);
   const isPassword = type === "password";
   const describedBy = error ? `${name}-error` : hint ? `${name}-hint` : undefined;
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={name} className="text-sm font-medium">
-        {label}
-      </label>
+      <div className="flex items-center gap-1.5">
+        <label htmlFor={name} className="text-sm font-medium">
+          {label}
+        </label>
+        {labelAside}
+      </div>
       <div className="relative">
         <input
           id={name}

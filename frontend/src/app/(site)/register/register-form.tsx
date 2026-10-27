@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { FormField } from "@/components/form-field";
 import { apiFetch } from "@/lib/api";
 
@@ -135,19 +135,9 @@ export function RegisterForm() {
         onChange={(e) => setPassword(e.target.value)}
         aria-describedby={fields?.password ? "password-error password-rules" : "password-rules"}
         error={fields?.password}
+        labelAside={<PasswordRulesInfo password={password} />}
       />
       <StrengthMeter password={password} />
-      <ul id="password-rules" className="-mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-        {passwordRules(password).map((rule) => (
-          <li key={rule.label} className={`flex items-center gap-1.5 ${rule.met ? "text-green-700 dark:text-green-400" : "text-zinc-500"}`}>
-            <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              {rule.met ? <path d="m5 12 5 5 9-10" /> : <circle cx="12" cy="12" r="3" />}
-            </svg>
-            {rule.label}
-            <span className="sr-only">{rule.met ? "(done)" : "(not yet)"}</span>
-          </li>
-        ))}
-      </ul>
 
       <button
         type="submit"
@@ -186,5 +176,59 @@ function StrengthMeter({ password }: { password: string }) {
         {strength?.label ?? ""}
       </p>
     </div>
+  );
+}
+
+function PasswordRulesInfo({ password }: { password: string }) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: PointerEvent) {
+      if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <span ref={wrapperRef} className="relative inline-flex">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Password requirements"
+        aria-expanded={open}
+        aria-controls="password-rules"
+        title="Password requirements"
+        className="flex h-[18px] w-[18px] items-center justify-center rounded-full border border-black/[.2] text-[11px] font-bold text-zinc-600 transition-colors hover:bg-black/[.04] hover:text-foreground dark:border-white/[.25] dark:text-zinc-400 dark:hover:bg-white/[.08]"
+      >
+        !
+      </button>
+      {/* Hidden rather than removed when closed, so the field can still point screen readers at it. */}
+      <ul
+        id="password-rules"
+        hidden={!open}
+        className="absolute top-full left-0 z-20 mt-2 w-60 rounded-xl border border-black/[.08] bg-background p-3 text-xs shadow-lg dark:border-white/[.145]"
+      >
+        <li className="mb-2 text-sm font-medium text-foreground">Your password needs</li>
+        {passwordRules(password).map((rule) => (
+          <li key={rule.label} className={`flex items-center gap-1.5 py-0.5 ${rule.met ? "text-green-700 dark:text-green-400" : "text-zinc-500"}`}>
+            <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              {rule.met ? <path d="m5 12 5 5 9-10" /> : <circle cx="12" cy="12" r="3" />}
+            </svg>
+            {rule.label}
+            <span className="sr-only">{rule.met ? "(done)" : "(not yet)"}</span>
+          </li>
+        ))}
+      </ul>
+    </span>
   );
 }
