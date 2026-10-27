@@ -3,9 +3,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy import text
 
 from cache import redis
+import schema_upgrades
 from database import Base, engine
 from encryption_middleware import PayloadEncryptionMiddleware
 from uploads import models as upload_models  # noqa: F401  (registers the uploads table)
@@ -23,13 +23,8 @@ async def lifespan(app: FastAPI):
     # once the schema starts changing we'll want proper migrations instead.
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # create_all doesn't touch tables that already exist, so bring older
-        # smile_analyses tables up to date. Safe to run every time.
-        await conn.execute(text("ALTER TABLE smile_analyses ADD COLUMN IF NOT EXISTS status VARCHAR(16) NOT NULL DEFAULT 'done'"))
-        await conn.execute(text("ALTER TABLE smile_analyses ALTER COLUMN face_found DROP NOT NULL"))
-        await conn.execute(text("ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL"))
-        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub VARCHAR(255)"))
-        await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)"))
+        # create_all doesn't touch tables that already exist, so bring older ones up to date.
+        await schema_upgrades.upgrade(conn)
     # A missing model should stop startup, not fail every upload later.
     await run_in_threadpool(smile.load)
     resume = asyncio.create_task(resume_pending())

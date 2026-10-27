@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 
-export type User = { id: number; email: string; created_at: string };
+export type User = { id: string; email: string; created_at: string };
 
 type AuthContextValue = {
   user: User | null | undefined;

@@ -2,6 +2,7 @@ import hashlib
 import logging
 import os
 import secrets
+import uuid
 from datetime import UTC, datetime, timedelta
 
 from dotenv import load_dotenv
@@ -36,21 +37,24 @@ def _cache_key(token_hash: str) -> str:
     return f"session:{token_hash}"
 
 
-async def _cache_get(token_hash: str) -> int | None:
+async def _cache_get(token_hash: str) -> uuid.UUID | None:
     try:
         value = await redis.get(_cache_key(token_hash))
-        return int(value) if value else None
+        return uuid.UUID(value) if value else None
+    except ValueError:
+        # Left over from before ids were UUIDs. Fall back to the database, which re-caches it.
+        return None
     except RedisError:
         log.warning("Redis unavailable, checking session in the database", exc_info=True)
         return None
 
 
-async def _cache_set(token_hash: str, user_id: int, expires_at: datetime) -> None:
+async def _cache_set(token_hash: str, user_id: uuid.UUID, expires_at: datetime) -> None:
     seconds = int((expires_at - datetime.now(UTC)).total_seconds())
     if seconds <= 0:
         return
     try:
-        await redis.set(_cache_key(token_hash), user_id, ex=seconds)
+        await redis.set(_cache_key(token_hash), str(user_id), ex=seconds)
     except RedisError:
         pass
 
