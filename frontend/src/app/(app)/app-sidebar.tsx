@@ -23,7 +23,7 @@ export function AppSidebar() {
     // Phones get a strip under the header instead, so collapsing only applies from md up.
     // From md up it runs the full height of the window, beside the header,
     // and stays put while the page next to it scrolls.
-    <aside className="border-b border-black/[.08] transition-[width] duration-200 md:sticky md:top-0 md:col-start-1 md:row-span-2 md:row-start-1 md:h-dvh md:w-44 md:self-start md:border-r md:border-b-0 [[data-sidebar=collapsed]_&]:md:w-14 dark:border-white/[.145]">
+    <aside className="hidden border-r border-black/[.08] transition-[width] duration-200 md:sticky md:top-0 md:col-start-1 md:row-span-2 md:row-start-1 md:block md:h-dvh md:w-44 md:self-start [[data-sidebar=collapsed]_&]:md:w-14 dark:border-white/[.145]">
       <div className="md:flex md:h-full md:flex-col">
         {/* Same height as the header with the same bottom border, so the two read as one bar.
             The name hides when folded and the button moves to the middle. */}
@@ -55,24 +55,32 @@ export function AppSidebar() {
           </button>
         </div>
 
-        <nav aria-label="App" className="flex gap-1 overflow-x-auto px-4 py-3 md:flex-1 md:flex-col md:px-3 md:py-6">
-          {/* On pages like /upload-history/42 the URL isn't known until the request
-              comes in, so reading it has to wait inside Suspense. Meanwhile the same
-              links show, just without the highlight. */}
-          <Suspense fallback={<NavLinks pathname={null} collapsed={collapsed} />}>
-            <CurrentNavLinks collapsed={collapsed} />
-          </Suspense>
+        <nav aria-label="App" className="flex flex-1 flex-col gap-1 px-3 py-6">
+          <AppNavLinks collapsed={collapsed} />
         </nav>
       </div>
     </aside>
   );
 }
 
-function CurrentNavLinks({ collapsed }: { collapsed: boolean }) {
-  return <NavLinks pathname={usePathname()} collapsed={collapsed} />;
+type NavLinksProps = { collapsed?: boolean; onNavigate?: () => void };
+
+// Shared by the sidebar and the mobile menu.
+export function AppNavLinks(props: NavLinksProps) {
+  // On pages like /upload-history/42 the URL isn't known until the request comes in,
+  // so reading it waits inside Suspense. Meanwhile the links show without the highlight.
+  return (
+    <Suspense fallback={<NavLinks pathname={null} {...props} />}>
+      <CurrentNavLinks {...props} />
+    </Suspense>
+  );
 }
 
-function NavLinks({ pathname, collapsed }: { pathname: string | null; collapsed: boolean }) {
+function CurrentNavLinks(props: NavLinksProps) {
+  return <NavLinks pathname={usePathname()} {...props} />;
+}
+
+function NavLinks({ pathname, collapsed = false, onNavigate }: NavLinksProps & { pathname: string | null }) {
   return (
     <>
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
@@ -82,6 +90,7 @@ function NavLinks({ pathname, collapsed }: { pathname: string | null; collapsed:
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
+            onClick={onNavigate}
             // When the label is hidden, the tooltip is the only way to know what an icon is.
             title={collapsed ? label : undefined}
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors [[data-sidebar=collapsed]_&]:md:justify-center [[data-sidebar=collapsed]_&]:md:px-0 ${
