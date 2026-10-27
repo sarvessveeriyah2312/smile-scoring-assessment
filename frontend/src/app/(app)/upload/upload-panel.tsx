@@ -1,35 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useAuth } from "@/auth/auth-provider";
+import Link from "next/link";
+import { useCallback, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 
-type Upload = { id: number; filename: string; content_type: string; size: number; created_at: string };
-
-type QueuedFile = { key: string; file: File; status: "uploading" | "error"; error?: string };
+type QueuedFile = { key: string; file: File; status: "uploading" | "done" | "error"; error?: string };
 
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_BYTES = 10 * 1024 * 1024;
 
 export function UploadPanel() {
-  const { user } = useAuth();
-  const [uploads, setUploads] = useState<Upload[] | null>(null);
-  const [loadError, setLoadError] = useState(false);
   const [queue, setQueue] = useState<QueuedFile[]>([]);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const userId = user?.id;
-  useEffect(() => {
-    // Nobody logged in yet (or we're still checking), so there's nothing to load.
-    if (!userId) return;
-    // Lists come back wrapped as { data: [...] } so the encryption has a key to work with.
-    apiFetch<{ data: Upload[] }>("/uploads").then(
-      (res) => (res.ok && res.data ? setUploads(res.data.data) : setLoadError(true)),
-      () => setLoadError(true),
-    );
-  }, [userId]);
 
   const updateQueued = (key: string, changes: Partial<QueuedFile> | null) =>
     setQueue((items) =>
@@ -56,12 +40,12 @@ export function UploadPanel() {
       if (!ACCEPTED_TYPES.includes(file.type) || file.size > MAX_BYTES) continue;
 
       try {
-        const res = await apiFetch<Upload & { detail?: string }>("/uploads", {
+        const res = await apiFetch<{ detail?: string }>("/uploads", {
           body: { filename: file.name, data: await toBase64(file) },
         });
-        if (res.ok && res.data) {
-          setUploads((current) => [res.data as Upload, ...(current ?? [])]);
-          updateQueued(key, null);
+        if (res.ok) {
+          // Leave it in the list as done, so people can see it worked.
+          updateQueued(key, { status: "done" });
         } else if (res.status === 401) {
           updateQueued(key, { status: "error", error: "Your session has ended. Please log in again." });
         } else {
@@ -125,6 +109,13 @@ export function UploadPanel() {
               <span className="min-w-0 flex-1 truncate">{item.file.name}</span>
               {item.status === "uploading" ? (
                 <span className="text-zinc-500">Uploading…</span>
+              ) : item.status === "done" ? (
+                <>
+                  <span className="text-green-700 dark:text-green-400">Uploaded</span>
+                  <Link href="/upload-history" className="text-zinc-500 underline-offset-4 hover:text-foreground hover:underline">
+                    View in history
+                  </Link>
+                </>
               ) : (
                 <>
                   <span className="text-red-600 dark:text-red-400">{item.error}</span>
@@ -136,71 +127,6 @@ export function UploadPanel() {
             </li>
           ))}
         </ul>
-      )}
-
-      <section>
-        <h2 className="text-lg font-semibold tracking-tight">Your uploads</h2>
-        {loadError ? (
-          <p className="mt-3 text-sm text-red-600 dark:text-red-400">We couldn&apos;t load your uploads. Try refreshing the page.</p>
-        ) : uploads === null ? (
-          <p className="mt-3 text-sm text-zinc-500">Loading…</p>
-        ) : uploads.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-500">Nothing here yet. Your images will show up here once they&apos;re uploaded.</p>
-        ) : (
-          <ul className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-4">
-            {uploads.map((upload) => (
-              <li key={upload.id} className="overflow-hidden rounded-xl border border-black/[.08] dark:border-white/[.145]">
-                <Thumbnail upload={upload} />
-                <div className="px-3 py-2">
-                  <p className="truncate text-sm font-medium" title={upload.filename}>
-                    {upload.filename}
-                  </p>
-                  <p className="text-xs text-zinc-500">{formatSize(upload.size)}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </div>
-  );
-}
-
-// Images come back encrypted like everything else, so we fetch each one,
-// decrypt it, and turn it into a local URL the <img> tag can use.
-function Thumbnail({ upload }: { upload: Upload }) {
-  const [src, setSrc] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let url: string | null = null;
-    let cancelled = false;
-
-    apiFetch<{ data: string }>(`/uploads/${upload.id}`)
-      .then((res) => {
-        if (cancelled) return;
-        if (!res.ok || !res.data) return setFailed(true);
-        const bytes = Uint8Array.from(atob(res.data.data), (c) => c.charCodeAt(0));
-        url = URL.createObjectURL(new Blob([bytes], { type: upload.content_type }));
-        setSrc(url);
-      })
-      .catch(() => !cancelled && setFailed(true));
-
-    // Free the memory once the thumbnail is gone.
-    return () => {
-      cancelled = true;
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [upload.id, upload.content_type]);
-
-  return (
-    <div className="flex aspect-square items-center justify-center bg-black/[.03] dark:bg-white/[.04]">
-      {src ? (
-        // A blob: URL from memory, so next/image's optimiser has nothing to fetch.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={upload.filename} className="h-full w-full object-cover" />
-      ) : (
-        <span className="text-xs text-zinc-500">{failed ? "Couldn't load" : "Loading…"}</span>
       )}
     </div>
   );
@@ -214,10 +140,4 @@ function toBase64(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
-}
-
-function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

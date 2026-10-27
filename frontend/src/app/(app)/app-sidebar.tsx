@@ -5,7 +5,10 @@ import { usePathname } from "next/navigation";
 import { useLayoutEffect, useSyncExternalStore } from "react";
 import { isSidebarCollapsed, restoreSidebar, setSidebarCollapsed, subscribeToSidebar } from "@/sidebar/sidebar";
 
-const NAV_ITEMS = [{ href: "/upload", label: "Upload", icon: UploadIcon }];
+const NAV_ITEMS = [
+  { href: "/upload", label: "Upload", icon: UploadIcon },
+  { href: "/upload-history", label: "Upload History", icon: HistoryIcon },
+];
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -72,6 +75,16 @@ function UploadIcon() {
     <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M12 16V4M7 9l5-5 5 5" />
       <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
+    </svg>
+  );
+}
+
+function HistoryIcon() {
+  return (
+    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M12 7v5l3 2" />
     </svg>
   );
 }
