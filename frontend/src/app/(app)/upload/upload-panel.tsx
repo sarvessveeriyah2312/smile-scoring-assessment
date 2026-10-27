@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useRef, useState } from "react";
-import { apiUpload } from "@/lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { apiFetch, apiUpload } from "@/lib/api";
 import { type Smile, smileSummary } from "@/lib/smile";
 
 type QueuedFile = {
@@ -66,8 +66,36 @@ export function UploadPanel() {
         updateQueued(key, { status: "error", error: "We couldn't reach the server. Check your connection and try again." });
       }
     }
-    if (incoming.length === 1 && uploadedIds.length === 1) router.push(`/upload-history/${uploadedIds[0]}`);
+    if (incoming.length === 1 && uploadedIds.length === 1) {
+      // Clear the row first: Next.js keeps this page as it was, so going Back
+      // would otherwise show a stale "Analysing…" for an image that's long done.
+      updateQueued(incoming[0].key, null);
+      router.push(`/upload-history/${uploadedIds[0]}`);
+    }
   }, [router]);
+
+  // Rows still waiting on a score check back until it arrives.
+  const pendingIds = queue
+    .filter((item) => item.status === "done" && item.uploadId && item.smile?.status === "pending")
+    .map((item) => item.uploadId as number);
+  const pendingKey = pendingIds.join(",");
+  useEffect(() => {
+    if (!pendingKey) return;
+    const ids = pendingKey.split(",").map(Number);
+    const timer = setInterval(() => {
+      for (const id of ids) {
+        apiFetch<{ smile?: Smile | null }>(`/uploads/${id}`).then(
+          (res) => {
+            if (!res.ok || !res.data?.smile) return;
+            const smile = res.data.smile;
+            setQueue((items) => items.map((item) => (item.uploadId === id ? { ...item, smile } : item)));
+          },
+          () => {},
+        );
+      }
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [pendingKey]);
 
   return (
     <div className="mt-6 flex flex-col gap-8">
