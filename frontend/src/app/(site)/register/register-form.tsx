@@ -28,6 +28,31 @@ function passwordRules(password: string) {
   ];
 }
 
+const WEAK_PATTERNS = /password|qwerty|letmein|welcome|admin|abc123|111111|123456|(.)\1{3,}|0123|1234|2345|3456|4567|5678|6789/i;
+
+const STRENGTH = [
+  { label: "Weak", bar: "bg-red-500", text: "text-red-600 dark:text-red-400" },
+  { label: "Fair", bar: "bg-amber-500", text: "text-amber-600 dark:text-amber-400" },
+  { label: "Good", bar: "bg-lime-500", text: "text-lime-700 dark:text-lime-400" },
+  { label: "Strong", bar: "bg-green-600", text: "text-green-700 dark:text-green-400" },
+];
+
+// A rough estimate: length and variety push it up, obvious patterns pull it down.
+// Anything that misses the required rules stays Weak.
+function passwordStrength(password: string) {
+  if (!password) return null;
+  if (passwordRules(password).some((rule) => !rule.met)) return STRENGTH[0];
+
+  let points = 0;
+  if (password.length >= 12) points++;
+  if (password.length >= 16) points++;
+  if (/\p{Ll}/u.test(password) && /\p{Lu}/u.test(password)) points++;
+  if ((password.match(/[^\p{L}\p{N}\s]/gu) ?? []).length >= 2) points++;
+  if (WEAK_PATTERNS.test(password)) points -= 2;
+
+  return STRENGTH[Math.max(0, Math.min(3, points))];
+}
+
 async function register(_prev: State, formData: FormData): Promise<State> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
@@ -111,6 +136,7 @@ export function RegisterForm() {
         aria-describedby={fields?.password ? "password-error password-rules" : "password-rules"}
         error={fields?.password}
       />
+      <StrengthMeter password={password} />
       <ul id="password-rules" className="-mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
         {passwordRules(password).map((rule) => (
           <li key={rule.label} className={`flex items-center gap-1.5 ${rule.met ? "text-green-700 dark:text-green-400" : "text-zinc-500"}`}>
@@ -138,5 +164,27 @@ export function RegisterForm() {
         </Link>
       </p>
     </form>
+  );
+}
+
+function StrengthMeter({ password }: { password: string }) {
+  const strength = passwordStrength(password);
+  const level = strength ? STRENGTH.indexOf(strength) : -1;
+
+  return (
+    <div className="-mt-2 flex items-center gap-3">
+      <div className="grid flex-1 grid-cols-4 gap-1" aria-hidden="true">
+        {STRENGTH.map((step, i) => (
+          <span
+            key={step.label}
+            className={`h-1.5 rounded-full transition-colors ${strength && i <= level ? strength.bar : "bg-black/[.08] dark:bg-white/[.12]"}`}
+          />
+        ))}
+      </div>
+      <p aria-live="polite" className={`w-14 text-right text-xs font-medium ${strength ? strength.text : "text-zinc-400"}`}>
+        <span className="sr-only">Password strength: </span>
+        {strength?.label ?? ""}
+      </p>
+    </div>
   );
 }
