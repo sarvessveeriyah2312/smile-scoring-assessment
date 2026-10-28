@@ -74,7 +74,7 @@ const secondaryButton =
 export default function Home() {
   return (
     <main className="flex-1 font-sans">
-      <section className="grid w-full max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-[1.1fr_1fr]">
+      <section className="grid w-full items-center gap-12 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-[1.1fr_1fr]">
         <div>
           <p className="text-sm font-medium text-zinc-500">Powered by MediaPipe Face Landmarker</p>
           <h1 className="mt-3 max-w-xl text-4xl font-semibold tracking-tight sm:text-5xl">
@@ -176,7 +176,7 @@ export default function Home() {
         </dl>
       </Section>
 
-      <section className="w-full max-w-6xl px-4 pt-4 pb-24 sm:px-6">
+      <section className="w-full px-4 pt-4 pb-24 sm:px-6">
         <div className="flex flex-col items-start gap-6 rounded-3xl bg-foreground px-8 py-10 text-background sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-2xl font-semibold tracking-tight">Ready to score a smile?</h2>
@@ -196,7 +196,7 @@ export default function Home() {
 
 function Section({ eyebrow, title, children }: { eyebrow: string; title: string; children: React.ReactNode }) {
   return (
-    <section className="w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
+    <section className="w-full px-4 py-12 sm:px-6 sm:py-16">
       <p className="text-sm font-medium text-zinc-500">{eyebrow}</p>
       <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h2>
       <div className="mt-8">{children}</div>
