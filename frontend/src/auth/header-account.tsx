@@ -18,9 +18,17 @@ export function HeaderAccount() {
 
   if (!user) {
     return (
-      <Link href="/register" className={pillButton}>
-        Get started
-      </Link>
+      <div className="flex items-center gap-2">
+        <Link
+          href="/login"
+          className="rounded-full px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-black/[.04] hover:text-foreground dark:text-zinc-400 dark:hover:bg-white/[.06]"
+        >
+          Log in
+        </Link>
+        <Link href="/register" className={pillButton}>
+          Get started
+        </Link>
+      </div>
     );
   }
 
